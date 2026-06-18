@@ -9,7 +9,7 @@ export default function Experience() {
     {
       position: "Software Engineer Intern",
       company: "DotB (Ho Chi Minh City, Vietnam)",
-      period: "December 2025 - January 2026",
+      period: "Dec 2025 - Jan 2026",
       text: "Integrated Zabbix for host monitoring with custom dashboards to fully automate infrastructure oversight and eliminate manual input.",
     },
     {
@@ -22,7 +22,7 @@ export default function Experience() {
     {
       position: "Student Researcher",
       company: "Nair Lab @ LKCMedicine (Singapore)",
-      period: "September 2025 - Present",
+      period: "Sep 2025 - Present",
       text: "Benchmarking vision transformers and deep state space models to classify behaviours in videos of freely-behaving mice for computational neuroscience research applications. Under NTU's Undergraduate Research Experience on Campus Programme.",
     },
   ];

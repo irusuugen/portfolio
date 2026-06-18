@@ -1,25 +1,86 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 
 export default function About() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const squareRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
-  const [lineWidth, setLineWidth] = useState(643);
-  const [textHeight, setTextHeight] = useState(204);
 
-  useEffect(() => {
-    if (!textRef.current) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setLineWidth(entry.contentRect.width + 270);
-      setTextHeight(entry.contentRect.height);
+  const [svgProps, setSvgProps] = useState<{
+    width: number;
+    height: number;
+    offsetX: number;
+    offsetY: number;
+    path: string;
+  } | null>(null);
+
+  const recalculate = useCallback(() => {
+    if (!containerRef.current || !squareRef.current || !textRef.current) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const squareRect = squareRef.current.getBoundingClientRect();
+    const textRect = textRef.current.getBoundingClientRect();
+
+    const fromX = squareRect.right - containerRect.left;
+    const fromY = squareRect.top + squareRect.height / 2 - containerRect.top;
+
+    const textLeft = textRect.left - containerRect.left;
+    const textRight = textRect.right - containerRect.left;
+    const textTop = textRect.top - containerRect.top;
+    const textBottom = textRect.bottom - containerRect.top;
+
+    const dropY = Math.max(fromY + 40, textBottom - 10);
+
+    const pad = 30;
+    const minX = Math.min(fromX, textLeft) - pad;
+    const minY = textTop - 40;
+    const maxX = textRight + pad;
+    const maxY = dropY + pad;
+
+    const svgWidth = maxX - minX;
+    const svgHeight = maxY - minY;
+
+    const x1 = fromX - minX;
+    const y1 = fromY - minY;
+    const xLeft = textLeft - minX;
+    const xRight = textRight - minX;
+    const yTop = textTop - minY;
+    const yDrop = dropY - minY;
+
+    const peakOffsetX = 10;
+    const peakOffsetY = 20;
+
+    const path = [
+      `M${x1} ${y1}`,
+      `H${x1 + 60}`,
+      `L${xLeft - 80} ${yDrop}`,
+      `H${xLeft - 30}`,
+      `V${yTop - 20}`,
+      `L${xLeft + peakOffsetX} ${yTop - 40}`,
+      `H${xRight}`,
+    ].join(" ");
+
+    setSvgProps({
+      width: svgWidth,
+      height: svgHeight,
+      offsetX: minX,
+      offsetY: minY,
+      path,
     });
-    observer.observe(textRef.current);
-    return () => observer.disconnect();
   }, []);
 
-  const riseTop = 254 - textHeight;
-  const svgViewHeight = 254 + 30;
+  useEffect(() => {
+    recalculate();
+    const ro = new ResizeObserver(recalculate);
+    if (containerRef.current) ro.observe(containerRef.current);
+    window.addEventListener("resize", recalculate);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", recalculate);
+    };
+  }, [recalculate]);
 
   return (
     <div className="w-full flex flex-col items-center justify-center gap-16 py-24 px-4">
@@ -28,32 +89,79 @@ export default function About() {
           ABOUT ME
         </h2>
 
-        <div className="flex relative flex-row flex-wrap justify-center [overflow-y:clip]">
-          <Image
-            src="/portrait.png"
-            alt="Picture of me (michelle)!"
-            width={371}
-            height={541}
+        <div
+          ref={containerRef}
+          className="flex flex-row flex-wrap justify-center"
+          style={{ position: "relative", overflow: "visible" }}
+        >
+          <div
             className="xl:-ml-32 xl:w-92 md:w-70 w-56 h-auto"
-          />
+            style={{ position: "relative", overflow: "visible" }}
+          >
+            <Image
+              src="/portrait.png"
+              alt="Picture of me (michelle)!"
+              width={371}
+              height={541}
+              className="w-full h-auto"
+            />
+            <div
+              ref={squareRef}
+              className="absolute md:block hidden"
+              style={{ bottom: "34%", left: "43%", width: 43, height: 43 }}
+            >
+              <svg
+                width="43"
+                height="43"
+                viewBox="0 0 43 43"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <filter
+                    id="sq_glow"
+                    x="-20%"
+                    y="-20%"
+                    width="140%"
+                    height="140%"
+                  >
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite
+                      in="SourceGraphic"
+                      in2="blur"
+                      operator="over"
+                    />
+                  </filter>
+                </defs>
+                <g filter="url(#sq_glow)" stroke="#E6CCFF" strokeWidth="2">
+                  <rect x="7" y="8" width="29" height="27" />
+                  <rect x="0" y="1" width="43" height="41" />
+                </g>
+              </svg>
+            </div>
+          </div>
 
-          <div className="absolute xl:bottom-[-184%] xl:left-[10%] md:block hidden shrink-0 md:min-w-200 md:min-h-323 md:bottom-[-246%] md:left-[14%]">
+          {svgProps && (
             <svg
-              width={lineWidth}
-              height={svgViewHeight + 50}
-              viewBox={`0 0 ${lineWidth} ${svgViewHeight}`}
+              className="absolute pointer-events-none md:block hidden"
+              style={{
+                left: svgProps.offsetX,
+                top: svgProps.offsetY,
+                overflow: "visible",
+                zIndex: 10,
+              }}
+              width={svgProps.width}
+              height={svgProps.height}
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
             >
               <defs>
                 <filter
-                  id="filter0_d_252_8"
-                  x="-5%"
-                  y="-5%"
-                  width="110%"
-                  height="110%"
-                  filterUnits="objectBoundingBox"
-                  colorInterpolationFilters="sRGB"
+                  id="line_glow"
+                  x="-10%"
+                  y="-10%"
+                  width="120%"
+                  height="120%"
                 >
                   <feFlood floodOpacity="0" result="BackgroundImageFix" />
                   <feColorMatrix
@@ -72,40 +180,24 @@ export default function About() {
                   <feBlend
                     mode="normal"
                     in2="BackgroundImageFix"
-                    result="effect1_dropShadow_252_8"
+                    result="effect1_dropShadow"
                   />
                   <feBlend
                     mode="normal"
                     in="SourceGraphic"
-                    in2="effect1_dropShadow_252_8"
+                    in2="effect1_dropShadow"
                     result="shape"
                   />
                 </filter>
               </defs>
-              <g
-                filter="url(#filter0_d_252_8)"
+              <path
+                d={svgProps.path}
                 stroke="#E6CCFF"
                 strokeWidth="2"
-              >
-                <path id="line-start" d="M61 139.5H130.5" />
-                <path id="line-drop" d="M130.5 139.5L190 254" />
-                <path id="line-base" d="M190 254H241" />
-                <path id="line-rise" d={`M241 254V${riseTop}`} />
-                <path
-                  id="line-peak"
-                  d={`M241 ${riseTop}L270 ${riseTop - 20}`}
-                />
-                <line
-                  x1="270"
-                  y1={riseTop - 20}
-                  x2={lineWidth}
-                  y2={riseTop - 20}
-                />
-                <path id="square-inner" d="M18 122H54V156H18V122Z" />
-                <path id="square-outer" d="M11 114H61V164H11V114Z" />
-              </g>
+                filter="url(#line_glow)"
+              />
             </svg>
-          </div>
+          )}
 
           <div
             ref={textRef}

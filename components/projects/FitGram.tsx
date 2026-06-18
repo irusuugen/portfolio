@@ -47,9 +47,9 @@ export default function FitGram({ onClose }: { onClose: () => void }) {
         <p className="mb-12">
           Fitgram is a social fitness app that helps people to stay active and
           connected through exercise. It makes fitness fun and interactive by
-          allowing users to track their workouts, share routes and achievements,
-          and stay motivated within a supportive community of fitness
-          enthusiasts.
+          allowing users to find new routes and facilities, track their
+          workouts, share routes and achievements, and stay motivated within a
+          supportive community of fitness enthusiasts.
         </p>
 
         <h2 className="md:text-5xl text-4xl mb-2">Demo Video</h2>
