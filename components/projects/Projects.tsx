@@ -60,9 +60,9 @@ function DesktopProjects() {
   }, [activeProject]);
 
   monitor(
-    canvasRef,
-    listRef,
-    textRef,
+    canvasRef as React.RefObject<HTMLElement>,
+    listRef as React.RefObject<HTMLElement>,
+    textRef as React.RefObject<HTMLElement>,
     (zoomOut: any) => {
       zoomOutRef.current = zoomOut;
     },
