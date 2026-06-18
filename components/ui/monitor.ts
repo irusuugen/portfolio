@@ -206,12 +206,17 @@ export function monitor(
       });
 
       const updateAspect = () => {
-        displayMaterial.uniforms.imageAspect.value =
-          texture.image.width / texture.image.height;
+        const img = texture.image as HTMLImageElement;
+        displayMaterial.uniforms.imageAspect.value = img.width / img.height;
       };
-      texture.image
-        ? updateAspect()
-        : texture.addEventListener("load", updateAspect);
+      if (texture.image) {
+        updateAspect();
+      } else {
+        textureLoader.load(src, (loadedTexture) => {
+          const img = loadedTexture.image as HTMLImageElement;
+          displayMaterial.uniforms.imageAspect.value = img.width / img.height;
+        });
+      }
     }
 
     const zoomTimeline = { active: false };
