@@ -5,8 +5,7 @@ import React, { useEffect, useRef, useMemo, useCallback } from "react";
 
 type Vec2 = [number, number];
 
-export interface FaultyTerminalProps
-  extends React.HTMLAttributes<HTMLDivElement> {
+export interface FaultyTerminalProps extends React.HTMLAttributes<HTMLDivElement> {
   scale?: number;
   gridMul?: Vec2;
   digitSize?: number;
@@ -265,7 +264,7 @@ export default function FaultyTerminal({
   mouseReact = true,
   mouseStrength = 0.2,
   dpr = typeof window !== "undefined"
-    ? Math.min(window.devicePixelRatio || 1, 2)
+    ? Math.min(window.devicePixelRatio || 1, 1.5)
     : 1,
   pageLoadAnimation = true,
   brightness = 1,
@@ -287,7 +286,7 @@ export default function FaultyTerminal({
 
   const ditherValue = useMemo(
     () => (typeof dither === "boolean" ? (dither ? 1 : 0) : dither),
-    [dither]
+    [dither],
   );
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -319,7 +318,7 @@ export default function FaultyTerminal({
           value: new Color(
             gl.canvas.width,
             gl.canvas.height,
-            gl.canvas.width / gl.canvas.height
+            gl.canvas.width / gl.canvas.height,
           ),
         },
         uScale: { value: scale },
@@ -357,16 +356,30 @@ export default function FaultyTerminal({
       program.uniforms.iResolution.value = new Color(
         gl.canvas.width,
         gl.canvas.height,
-        gl.canvas.width / gl.canvas.height
+        gl.canvas.width / gl.canvas.height,
       );
     }
 
-    const resizeObserver = new ResizeObserver(() => resize());
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const resizeObserver = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 100);
+    });
     resizeObserver.observe(ctn);
     resize();
 
+    let isVisible = true;
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        isVisible = entries[0]?.isIntersecting ?? true;
+      },
+      { rootMargin: "200px 0px" },
+    );
+    visibilityObserver.observe(ctn);
+
     const update = (t: number) => {
       rafRef.current = requestAnimationFrame(update);
+      if (!isVisible) return;
 
       if (pageLoadAnimation && loadAnimationStartRef.current === 0) {
         loadAnimationStartRef.current = t;
@@ -391,12 +404,15 @@ export default function FaultyTerminal({
         const dampingFactor = 0.08;
         const smoothMouse = smoothMouseRef.current;
         const mouse = mouseRef.current;
-        smoothMouse.x += (mouse.x - smoothMouse.x) * dampingFactor;
-        smoothMouse.y += (mouse.y - smoothMouse.y) * dampingFactor;
-
-        const mouseUniform = program.uniforms.uMouse.value as Float32Array;
-        mouseUniform[0] = smoothMouse.x;
-        mouseUniform[1] = smoothMouse.y;
+        const dx = mouse.x - smoothMouse.x;
+        const dy = mouse.y - smoothMouse.y;
+        if (Math.abs(dx) > 0.0001 || Math.abs(dy) > 0.0001) {
+          smoothMouse.x += dx * dampingFactor;
+          smoothMouse.y += dy * dampingFactor;
+          const mouseUniform = program.uniforms.uMouse.value as Float32Array;
+          mouseUniform[0] = smoothMouse.x;
+          mouseUniform[1] = smoothMouse.y;
+        }
       }
 
       renderer.render({ scene: mesh });
@@ -408,7 +424,9 @@ export default function FaultyTerminal({
 
     return () => {
       cancelAnimationFrame(rafRef.current);
+      clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      visibilityObserver.disconnect();
       if (mouseReact) ctn.removeEventListener("mousemove", handleMouseMove);
       if (gl.canvas.parentElement === ctn) ctn.removeChild(gl.canvas);
       gl.getExtension("WEBGL_lose_context")?.loseContext();

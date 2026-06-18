@@ -32,7 +32,6 @@ export const fragmentShader = `
         vec2 uv = vUv;
         float gl = glitchIntensity;
 
-        // Fixed missing + operator
         uv.x += (hash(floor(uv.y * 20.0 + time * 80.0) + time * 7.0) - 0.5) * 2.0 * gl * 0.15;
         uv.y += (hash(floor(time * 50.0)) - 0.5) * gl * 0.06;
 
@@ -48,10 +47,8 @@ export const fragmentShader = `
         col *= vec3(0.95, 1.05, 0.95) * 2.5;
         col *= vec3(0.6 + 0.4 * pow(clamp(0.35 + 0.35 * sin(uv.y * iResolution.y * 1.5), 0.0, 1.0), 1.2));
         
-        // Fixed decimal vs comma error
         col *= 1.0 - 0.65 * vec3(clamp((mod(vUv.x * iResolution.x, 2.0) - 1.0) * 2.0, 0.0, 1.0));
         
-        // Fixed logic: Add grain instead of multiplying by zero
         col += vec3(hash(uv.x * 100.0 + uv.y * 1000.0 + time * 300.0) * gl * 0.1);
    
         gl_FragColor = vec4(col, 1.0);

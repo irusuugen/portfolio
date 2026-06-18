@@ -174,7 +174,6 @@ export default function About() {
           </div>
         </div>
 
-        {/* Skills */}
         <div className="relative w-full max-w-lg aspect-130/135">
           <Image
             src="/box.svg"

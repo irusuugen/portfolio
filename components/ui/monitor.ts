@@ -17,7 +17,7 @@ export function monitor(
   exposeZoomOut?: (zoomOut: () => void) => void,
   onProjectSelect?: (project: ProjectData) => void,
   defaultImg: string = "/projects/munch.png",
-  onZoomStart?: () => void, // add this
+  onZoomStart?: () => void,
 ) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,6 +59,10 @@ export function monitor(
     scene.add(monitorGroup);
     monitorGroup.scale.set(0.7, 0.7, 0.7);
 
+    // Track loaded GLTF resources so they can be disposed on unmount,
+    // preventing a memory leak if this component mounts/unmounts repeatedly.
+    const loadedGltfScenes: THREE.Object3D[] = [];
+
     new GLTFLoader().load("/monitor.glb", (gltf: any) => {
       const model = gltf.scene;
       const center = new THREE.Box3()
@@ -66,6 +70,7 @@ export function monitor(
         .getCenter(new THREE.Vector3());
       model.position.sub(center);
       monitorGroup.add(model);
+      loadedGltfScenes.push(model);
     });
 
     function createScreenGeometry(w: number, h: number, r: number) {
@@ -145,8 +150,25 @@ export function monitor(
 
     let isZoomed = false;
 
+    // Gate rendering on visibility: when the canvas is scrolled off-screen,
+    // skip the render/shader work entirely instead of running it forever in
+    // the background. This is the main fix for "laggy when scrolling/moving
+    // the cursor in general" - the GPU/shader cost was running continuously
+    // regardless of whether the monitor was actually visible.
+    let isVisible = true;
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry) isVisible = entry.isIntersecting;
+      },
+      { rootMargin: "200px 0px" },
+    );
+    visibilityObserver.observe(canvas);
+
     function animate() {
       animationId = requestAnimationFrame(animate);
+      if (!isVisible) return;
+
       timer.update();
       displayMaterial.uniforms.time.value = timer.getElapsed();
 
@@ -205,17 +227,15 @@ export function monitor(
         },
       });
 
-      const updateAspect = () => {
-        const img = texture.image as HTMLImageElement;
-        displayMaterial.uniforms.imageAspect.value = img.width / img.height;
-      };
+      // Aspect ratio updates are already handled inside loadTexture's own
+      // load callback (above), which fires once the image is decoded.
+      // The previous version also fired a second textureLoader.load() call
+      // here on cache-miss, causing the same image to be requested/decoded
+      // twice in parallel. If the image is already loaded, update aspect
+      // immediately; otherwise loadTexture's callback will handle it.
       if (texture.image) {
-        updateAspect();
-      } else {
-        textureLoader.load(src, (loadedTexture) => {
-          const img = loadedTexture.image as HTMLImageElement;
-          displayMaterial.uniforms.imageAspect.value = img.width / img.height;
-        });
+        displayMaterial.uniforms.imageAspect.value =
+          texture.image.width / texture.image.height;
       }
     }
 
@@ -333,6 +353,7 @@ export function monitor(
 
     return () => {
       cancelAnimationFrame(animationId);
+      visibilityObserver.disconnect();
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", handleResize);
       list.removeEventListener("mouseleave", handleMouseLeave);
@@ -343,6 +364,17 @@ export function monitor(
       renderer.domElement.remove();
       displayMaterial.dispose();
       Object.values(textureCache).forEach((t) => t.dispose());
+      loadedGltfScenes.forEach((obj) => {
+        obj.traverse((child: any) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            const materials = Array.isArray(child.material)
+              ? child.material
+              : [child.material];
+            materials.forEach((m: THREE.Material) => m.dispose());
+          }
+        });
+      });
     };
   }, [canvasRef, listRef, textRef]);
 }

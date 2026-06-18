@@ -25,10 +25,12 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
 
   const isActiveRef = useRef(false);
   const targetCornerPositionsRef = useRef<{ x: number; y: number }[] | null>(
-    null
+    null,
   );
   const tickerFnRef = useRef<(() => void) | null>(null);
   const activeStrengthRef = useRef({ current: 0 });
+  const quickXRef = useRef<((value: number) => void) | null>(null);
+  const quickYRef = useRef<((value: number) => void) | null>(null);
 
   const isMobile = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -60,7 +62,7 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
 
     const cursor = cursorRef.current;
     cornersRef.current = cursor.querySelectorAll<HTMLDivElement>(
-      ".target-cursor-corner"
+      ".target-cursor-corner",
     );
 
     let activeTarget: Element | null = null;
@@ -79,6 +81,15 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
       yPercent: -50,
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
+    });
+
+    quickXRef.current = gsap.quickTo(cursor, "x", {
+      duration: 0.1,
+      ease: "power3.out",
+    });
+    quickYRef.current = gsap.quickTo(cursor, "y", {
+      duration: 0.1,
+      ease: "power3.out",
     });
 
     const createSpinTimeline = () => {
@@ -127,7 +138,10 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
 
     tickerFnRef.current = tickerFn;
 
-    const moveHandler = (e: MouseEvent) => moveCursor(e.clientX, e.clientY);
+    const moveHandler = (e: MouseEvent) => {
+      quickXRef.current?.(e.clientX);
+      quickYRef.current?.(e.clientY);
+    };
     window.addEventListener("mousemove", moveHandler);
 
     const scrollHandler = () => {
@@ -224,7 +238,16 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
         });
       });
 
+      const observer = new MutationObserver(() => {
+        if (activeTarget && !document.contains(activeTarget)) {
+          leaveHandler();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
       const leaveHandler = () => {
+        observer.disconnect();
         gsap.ticker.remove(tickerFnRef.current!);
         isActiveRef.current = false;
         targetCornerPositionsRef.current = null;
@@ -250,7 +273,7 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
                 duration: 0.3,
                 ease: "power3.out",
               },
-              0
+              0,
             );
           });
         }
@@ -258,7 +281,7 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
           if (!activeTarget && cursorRef.current && spinTl.current) {
             const currentRotation = gsap.getProperty(
               cursorRef.current,
-              "rotation"
+              "rotation",
             ) as number;
             const normalizedRotation = currentRotation % 360;
             spinTl.current.kill();
@@ -282,6 +305,7 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
         }, 50);
         cleanupTarget(target);
       };
+
       currentLeaveHandler = leaveHandler;
       target.addEventListener("mouseleave", leaveHandler);
     };
