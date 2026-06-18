@@ -28,7 +28,7 @@ export default function Experience() {
   ];
   return (
     <div className="w-full flex flex-col justify-center py-24 px-8 max-w-7xl mx-auto">
-      <h2 className="md:text-9xl text-8xl font-heading text-shadow-[0_0_12px_#e6ccff]">
+      <h2 className="md:text-9xl text-7xl font-heading text-shadow-[0_0_12px_#e6ccff]">
         EXPERIENCE
       </h2>
       <ul className="">
@@ -36,10 +36,10 @@ export default function Experience() {
           <li key={e.company} className="py-4 border-b-2 border-dotted mb-4">
             <div className="flex flex-row justify-between">
               <div>
-                <h3 className="text-2xl">{e.position}</h3>
-                <p>{e.company}</p>
+                <h3 className="md:text-2xl text-xl">{e.position}</h3>
+                <p className="md:text-base text-xs mt-2">{e.company}</p>
               </div>
-              <p>{e.period}</p>
+              <p className="md:text-base text-xs">{e.period}</p>
             </div>
             <p className="mt-4 opacity-80">{e.text}</p>
           </li>
