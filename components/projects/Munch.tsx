@@ -65,9 +65,11 @@ export default function Munch({ onClose }: { onClose: () => void }) {
           PS: We renamed the app from "Sigma Bites" to "Munch", but the features
           remain the same!
         </p>
-        <video width="320" height="240" controls preload="metadata">
-          <source src="/munchdemo.mp4" type="video/mp4" />
-        </video>
+        <iframe
+          src="https://www.youtube.com/embed/YrRM_lAp6yI"
+          className="w-full aspect-video"
+          allowFullScreen
+        />
       </div>
     </div>
   );
