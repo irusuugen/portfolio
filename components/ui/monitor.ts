@@ -35,9 +35,13 @@ export function monitor(
     camera.position.set(0, 0.15, 1);
     camera.lookAt(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: "high-performance",
+    });
     renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     renderer.domElement.style.width = "100%";
@@ -59,19 +63,19 @@ export function monitor(
     scene.add(monitorGroup);
     monitorGroup.scale.set(0.7, 0.7, 0.7);
 
-    // Track loaded GLTF resources so they can be disposed on unmount,
-    // preventing a memory leak if this component mounts/unmounts repeatedly.
     const loadedGltfScenes: THREE.Object3D[] = [];
 
-    new GLTFLoader().load("/monitor.glb", (gltf: any) => {
-      const model = gltf.scene;
-      const center = new THREE.Box3()
-        .setFromObject(model)
-        .getCenter(new THREE.Vector3());
-      model.position.sub(center);
-      monitorGroup.add(model);
-      loadedGltfScenes.push(model);
-    });
+    setTimeout(() => {
+      new GLTFLoader().load("/monitor.glb", (gltf: any) => {
+        const model = gltf.scene;
+        const center = new THREE.Box3()
+          .setFromObject(model)
+          .getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        monitorGroup.add(model);
+        loadedGltfScenes.push(model);
+      });
+    }, 0);
 
     function createScreenGeometry(w: number, h: number, r: number) {
       const shape = new THREE.Shape();
@@ -108,8 +112,8 @@ export function monitor(
       if (textureCache[src]) return textureCache[src];
       const texture = textureLoader.load(src, () => {
         if (displayMaterial) {
-          displayMaterial.uniforms.imageAspect.value =
-            texture.image.width / texture.image.height;
+          const img = texture.image as HTMLImageElement;
+          displayMaterial.uniforms.imageAspect.value = img.width / img.height;
         }
       });
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -150,11 +154,6 @@ export function monitor(
 
     let isZoomed = false;
 
-    // Gate rendering on visibility: when the canvas is scrolled off-screen,
-    // skip the render/shader work entirely instead of running it forever in
-    // the background. This is the main fix for "laggy when scrolling/moving
-    // the cursor in general" - the GPU/shader cost was running continuously
-    // regardless of whether the monitor was actually visible.
     let isVisible = true;
     const visibilityObserver = new IntersectionObserver(
       (entries) => {
@@ -173,16 +172,31 @@ export function monitor(
       displayMaterial.uniforms.time.value = timer.getElapsed();
 
       if (!isZoomed) {
-        lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
-        lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
-        monitorGroup.rotation.x = lerpedMouse.y * 0.1;
-        monitorGroup.rotation.y = lerpedMouse.x * 0.2;
+        const newX = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
+        const newY = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
+        if (
+          Math.abs(newX - lerpedMouse.x) > 0.0001 ||
+          Math.abs(newY - lerpedMouse.y) > 0.0001
+        ) {
+          lerpedMouse.x = newX;
+          lerpedMouse.y = newY;
+          monitorGroup.rotation.x = lerpedMouse.y * 0.1;
+          monitorGroup.rotation.y = lerpedMouse.x * 0.2;
+        }
       }
 
       renderer.render(scene, camera);
     }
 
     animate();
+
+    const listItems = list.querySelectorAll("li");
+    requestAnimationFrame(() => {
+      listItems.forEach((li) => {
+        const img = li.getAttribute("data-img");
+        if (img) loadTexture(img);
+      });
+    });
 
     const baseCameraZ = Math.max(1, 768 / canvas.clientWidth);
     camera.position.z = baseCameraZ;
@@ -227,15 +241,9 @@ export function monitor(
         },
       });
 
-      // Aspect ratio updates are already handled inside loadTexture's own
-      // load callback (above), which fires once the image is decoded.
-      // The previous version also fired a second textureLoader.load() call
-      // here on cache-miss, causing the same image to be requested/decoded
-      // twice in parallel. If the image is already loaded, update aspect
-      // immediately; otherwise loadTexture's callback will handle it.
       if (texture.image) {
-        displayMaterial.uniforms.imageAspect.value =
-          texture.image.width / texture.image.height;
+        const img = texture.image as HTMLImageElement;
+        displayMaterial.uniforms.imageAspect.value = img.width / img.height;
       }
     }
 
@@ -326,7 +334,6 @@ export function monitor(
 
     exposeZoomOut?.(zoomOut);
 
-    const listItems = list.querySelectorAll("li");
     listItems.forEach((li) => {
       li.addEventListener("mouseenter", () => {
         const img = li.getAttribute("data-img");
