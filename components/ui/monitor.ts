@@ -4,11 +4,20 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { fragmentShader, vertexShader } from "./shaders";
 
+interface ProjectData {
+  name: string;
+  img: string;
+  text: string;
+}
+
 export function monitor(
   canvasRef: RefObject<HTMLElement>,
   listRef: RefObject<HTMLElement>,
   textRef: RefObject<HTMLElement>,
-  defaultImg: string = "/projects/munch.png"
+  exposeZoomOut?: (zoomOut: () => void) => void,
+  onProjectSelect?: (project: ProjectData) => void,
+  defaultImg: string = "/projects/munch.png",
+  onZoomStart?: () => void, // add this
 ) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -21,7 +30,7 @@ export function monitor(
       24,
       canvas.clientWidth / canvas.clientHeight,
       0.1,
-      1000
+      1000,
     );
     camera.position.set(0, 0.15, 1);
     camera.lookAt(0, 0, 0);
@@ -48,6 +57,7 @@ export function monitor(
 
     const monitorGroup = new THREE.Group();
     scene.add(monitorGroup);
+    monitorGroup.scale.set(0.7, 0.7, 0.7);
 
     new GLTFLoader().load("/monitor.glb", (gltf: any) => {
       const model = gltf.scene;
@@ -121,7 +131,7 @@ export function monitor(
 
     const displayPlane = new THREE.Mesh(
       createScreenGeometry(1, 1, 0.03),
-      displayMaterial
+      displayMaterial,
     );
     displayPlane.scale.set(0.28, 0.235, 1);
     displayPlane.position.set(-0.008, 0.005, 0.041);
@@ -133,21 +143,30 @@ export function monitor(
     const timer = new THREE.Timer();
     let animationId: number;
 
+    let isZoomed = false;
+
     function animate() {
       animationId = requestAnimationFrame(animate);
       timer.update();
       displayMaterial.uniforms.time.value = timer.getElapsed();
-      lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
-      lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
-      monitorGroup.rotation.x = lerpedMouse.y * 0.1;
-      monitorGroup.rotation.y = lerpedMouse.x * 0.2;
+
+      if (!isZoomed) {
+        lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
+        lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
+        monitorGroup.rotation.x = lerpedMouse.y * 0.1;
+        monitorGroup.rotation.y = lerpedMouse.x * 0.2;
+      }
+
       renderer.render(scene, camera);
     }
 
     animate();
-    camera.position.z = Math.max(1, 768 / canvas.clientWidth);
+
+    const baseCameraZ = Math.max(1, 768 / canvas.clientWidth);
+    camera.position.z = baseCameraZ;
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isZoomed) return;
       mouse.x = (e.clientX / innerWidth - 0.5) * 4;
       mouse.y = (e.clientY / innerHeight - 0.5) * 2;
     };
@@ -195,6 +214,93 @@ export function monitor(
         : texture.addEventListener("load", updateAspect);
     }
 
+    const zoomTimeline = { active: false };
+    let zoomTween: gsap.core.Tween | null = null;
+    let modalOpenCall: gsap.core.Tween | null = null;
+
+    const ZOOM_IN_DURATION = 1.1;
+    const MODAL_OPEN_DELAY = 0.5;
+    const screenWorldPos = new THREE.Vector3();
+    displayPlane.getWorldPosition(screenWorldPos);
+
+    function zoomIn(onModalShouldOpen?: () => void) {
+      if (zoomTimeline.active) return;
+      zoomTimeline.active = true;
+      onZoomStart?.();
+      isZoomed = true;
+
+      if (zoomTween) zoomTween.kill();
+
+      zoomTween = gsap.to(camera.position, {
+        x: screenWorldPos.x,
+        y: screenWorldPos.y,
+        z: screenWorldPos.z + 0.06,
+        duration: ZOOM_IN_DURATION,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          camera.lookAt(screenWorldPos);
+          camera.updateProjectionMatrix();
+        },
+        onComplete: () => {
+          zoomTimeline.active = false;
+        },
+      });
+
+      if (modalOpenCall) modalOpenCall.kill();
+      modalOpenCall = gsap.delayedCall(MODAL_OPEN_DELAY, () => {
+        onModalShouldOpen?.();
+      });
+
+      gsap.to(camera, {
+        fov: 14,
+        duration: ZOOM_IN_DURATION,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          camera.updateProjectionMatrix();
+        },
+      });
+
+      gsap.to(monitorGroup.rotation, {
+        x: 0,
+        y: 0,
+        duration: ZOOM_IN_DURATION,
+        ease: "power2.inOut",
+      });
+    }
+
+    function zoomOut(onModalShouldClose?: () => void) {
+      if (zoomTween) zoomTween.kill();
+
+      onModalShouldClose?.();
+
+      zoomTween = gsap.to(camera.position, {
+        x: 0,
+        y: 0.15,
+        z: baseCameraZ,
+        duration: 0.9,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          camera.lookAt(0, 0, 0);
+          camera.updateProjectionMatrix();
+        },
+        onComplete: () => {
+          zoomTimeline.active = false;
+          isZoomed = false;
+        },
+      });
+
+      gsap.to(camera, {
+        fov: 24,
+        duration: 0.9,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          camera.updateProjectionMatrix();
+        },
+      });
+    }
+
+    exposeZoomOut?.(zoomOut);
+
     const listItems = list.querySelectorAll("li");
     listItems.forEach((li) => {
       li.addEventListener("mouseenter", () => {
@@ -202,9 +308,19 @@ export function monitor(
         const text = li.getAttribute("data-text") ?? "";
         if (img) setDisplayImage(img, text);
       });
+      li.addEventListener("click", () => {
+        const img = li.getAttribute("data-img") ?? defaultImg;
+        const text = li.getAttribute("data-text") ?? "";
+        const name = li.getAttribute("data-name") ?? "";
+
+        zoomIn(() => {
+          onProjectSelect?.({ name, img, text });
+        });
+      });
     });
 
     const handleMouseLeave = () => {
+      if (isZoomed) return;
       setDisplayImage(defaultImg);
       if (textEl) textEl.style.opacity = "0";
     };
@@ -216,6 +332,8 @@ export function monitor(
       window.removeEventListener("resize", handleResize);
       list.removeEventListener("mouseleave", handleMouseLeave);
       listItems.forEach((li) => li.replaceWith(li.cloneNode(true)));
+      zoomTween?.kill();
+      modalOpenCall?.kill();
       renderer.dispose();
       renderer.domElement.remove();
       displayMaterial.dispose();

@@ -1,11 +1,12 @@
 import TargetCursor from "@/components/ui/TargetCursor";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
-import Projects from "@/components/Projects";
+import Projects from "@/components/projects/Projects";
+import Experience from "@/components/Experience";
 
 export default function Home() {
   return (
-    <main>
+    <main className="flex flex-col">
       <TargetCursor
         spinDuration={2}
         hideDefaultCursor
@@ -15,6 +16,7 @@ export default function Home() {
       <Hero />
       <About />
       <Projects />
+      <Experience />
     </main>
   );
 }
