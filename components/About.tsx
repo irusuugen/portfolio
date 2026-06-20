@@ -50,7 +50,6 @@ export default function About() {
     const yDrop = dropY - minY;
 
     const peakOffsetX = 10;
-    const peakOffsetY = 20;
 
     const path = [
       `M${x1} ${y1}`,
@@ -108,7 +107,7 @@ export default function About() {
             <div
               ref={squareRef}
               className="absolute md:block hidden"
-              style={{ bottom: "34%", left: "43%", width: 43, height: 43 }}
+              style={{ bottom: "24%", left: "56%", width: 43, height: 43 }}
             >
               <svg
                 width="43"
